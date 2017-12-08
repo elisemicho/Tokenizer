@@ -11,8 +11,13 @@ else()
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
 endif()
 
+find_package(ICU COMPONENTS io data uc)
+find_package(Boost COMPONENTS filesystem program_options)
+
 set(INCLUDE_DIRECTORIES
   ${CMAKE_CURRENT_SOURCE_DIR}/include
+  ${Boost_INCLUDE_DIRS}
+  ${ICU_INCLUDE_DIRS}
   )
 set(PUBLIC_HEADERS
   include/onmt/ITokenizer.h
@@ -20,6 +25,7 @@ set(PUBLIC_HEADERS
   include/onmt/BPE.h
   include/onmt/CaseModifier.h
   include/onmt/SpaceTokenizer.h
+  include/onmt/Morfessor.h
   )
 
 add_library(${PROJECT_NAME}
@@ -30,10 +36,13 @@ add_library(${PROJECT_NAME}
   src/Tokenizer.cc
   src/unicode/Data.cc
   src/unicode/Unicode.cc
+  src/Morfessor.cc
   )
 
 target_include_directories(${PROJECT_NAME} PUBLIC ${INCLUDE_DIRECTORIES})
-
+target_link_libraries(${PROJECT_NAME}
+  ${ICU_LIBRARIES}
+  ${Boost_LIBRARIES})
 if (NOT LIB_ONLY)
   add_subdirectory(cli)
   add_subdirectory(test)

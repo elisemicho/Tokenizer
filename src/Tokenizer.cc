@@ -3,11 +3,17 @@
 #include "onmt/CaseModifier.h"
 #include "onmt/unicode/Unicode.h"
 
+#include <iostream>
+
 namespace onmt
 {
 
   std::unordered_map<std::string, BPE*> bpe_cache;
   std::mutex bpe_cache_mutex;
+
+  static std::unordered_map<std::string, Morfessor*> morfessor_cache;
+  static std::mutex morfessor_cache_mutex;
+
   const std::string Tokenizer::joiner_marker("￭");
   const std::map<std::string, std::string> substitutes = {
                                                       { "￭", "■" },
@@ -38,6 +44,21 @@ namespace onmt
     return bpe;
   }
 
+  static Morfessor* load_morfessor(const std::string& morfessor_model_path, float a, size_t m, size_t b, size_t n, std::string j, size_t v)
+  {
+    std::lock_guard<std::mutex> lock(morfessor_cache_mutex);
+
+    auto it = morfessor_cache.find(morfessor_model_path);
+    if (it != morfessor_cache.end())
+      return it->second;
+
+    Morfessor* morfessor = new Morfessor(morfessor_model_path, a, m, b, n, j, v);
+    morfessor_cache[morfessor_model_path] = morfessor;
+    return morfessor;
+  }
+
+
+  // constructor of Tokenizer with BPE
   Tokenizer::Tokenizer(Mode mode,
                        const std::string& bpe_model_path,
                        bool case_feature,
@@ -65,6 +86,47 @@ namespace onmt
         _bpe = load_bpe(bpe_model_path);
       else
         _bpe = new BPE(bpe_model_path);
+    }
+  }
+
+  // constructor of Tokenizer with Morfessor
+  Tokenizer::Tokenizer(Mode mode,
+                       bool case_feature,
+                       bool joiner_annotate,
+                       bool joiner_new,
+                       const std::string& joiner,
+                       bool with_separators,
+                       bool segment_case,
+                       bool segment_numbers,
+                       const std::string& morfessor_model_path,
+                       bool cache_morfessor_model,
+                       float addcount,
+                       size_t maxlen,
+                       size_t nbest,
+                       size_t beam,
+                       bool verbose)
+    : _mode(mode)
+    , _case_feature(case_feature)
+    , _joiner_annotate(joiner_annotate)
+    , _joiner_new(joiner_new)
+    , _joiner(joiner)
+    , _with_separators(with_separators)
+    , _segment_case(segment_case)
+    , _segment_numbers(segment_numbers)
+    , _morfessor(nullptr)
+    , _cache_morfessor_model(cache_morfessor_model)
+    , _addcount(addcount)
+    , _maxlen(maxlen)
+    , _nbest(nbest)
+    , _beam(beam)
+    , _verbose(verbose)
+  {
+    if (!morfessor_model_path.empty())
+    {
+      if (cache_morfessor_model)
+        _morfessor = load_morfessor(morfessor_model_path, addcount,maxlen,beam,nbest,joiner,verbose);
+      else
+        _morfessor = new Morfessor(morfessor_model_path, addcount,maxlen,beam,nbest,joiner,verbose);
     }
   }
 
@@ -112,6 +174,7 @@ namespace onmt
     return line;
   }
 
+  // separate the text in words and subtokenize according to the chosen method
   void Tokenizer::tokenize(const std::string& text,
                            std::vector<std::string>& words,
                            std::vector<std::vector<std::string> >& features)
@@ -378,6 +441,9 @@ namespace onmt
     if (_bpe)
       words = bpe_segment(words);
 
+    if (_morfessor)
+      words = morfessor_segment(words);
+
     if (_case_feature)
     {
       std::vector<std::string> case_feat;
@@ -399,6 +465,7 @@ namespace onmt
     }
   }
 
+  // returns the segmentation of the words according to BPE
   std::vector<std::string> Tokenizer::bpe_segment(const std::vector<std::string>& tokens)
   {
     std::vector<std::string> segments;
@@ -454,6 +521,34 @@ namespace onmt
       }
     }
 
+    return segments;
+  }
+
+  // returns the best segmentation of the words according to Morfessor
+  std::vector<std::string> Tokenizer::morfessor_segment(const std::vector<std::string>& tokens){
+
+    std::vector<std::string> segments;
+
+    // the function Morfessor::segment(word) segments one word in subwords, returns vector of segmentations with the cost of their hypotheses
+    std::vector<std::pair<float, std::string> > nsegments;
+
+    for (size_t i = 0; i < tokens.size(); ++i)
+    {
+      std::string token = tokens[i];
+      nsegments = _morfessor->segment(token);
+
+      if (_nbest==0){ //onebest
+        std::cout << (i?" ":"") << nsegments[0].second;
+      }
+      else{ //nbest
+        for (size_t s=0; s<nsegments.size(); s++){
+          std::cout << (s?"\t":"") << nsegments[s].second << " " << nsegments[s].first;
+        }
+        std::cout << std::endl;
+      }
+
+      segments.push_back(nsegments[0].second);//we keep only the best segmentation for tokenization
+    }
     return segments;
   }
 

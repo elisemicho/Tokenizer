@@ -5,6 +5,7 @@
 
 #include "onmt/ITokenizer.h"
 #include "onmt/BPE.h"
+#include "onmt/Morfessor.h"
 
 namespace onmt
 {
@@ -22,6 +23,10 @@ namespace onmt
 
     static std::unordered_map<std::string, BPE*> bpe_cache;
     static std::mutex bpe_cache_mutex;
+
+    static std::unordered_map<std::string, Morfessor*> morfessor_cache;
+    static std::mutex morfessor_cache_mutex;
+
     static const std::string joiner_marker;
     static const std::unordered_map<std::string, onmt::Tokenizer::Mode> mapMode;
 
@@ -35,8 +40,26 @@ namespace onmt
               bool segment_case = false,
               bool segment_numbers = false,
               bool cache_bpe_model = false);
+
+    Tokenizer(Mode mode = Mode::Conservative,
+              bool case_feature = false,
+              bool joiner_annotate = false,
+              bool joiner_new = false,
+              const std::string& joiner = joiner_marker,
+              bool with_separators = false,
+              bool segment_case = false,
+              bool segment_numbers = false,
+              const std::string& morfessor_model_path = "",
+              bool cache_morfessor_model = false,
+              float addcount = 0,
+              size_t maxlen = 30,
+              size_t nbest = 0,
+              size_t beam = 0,
+              bool verbose = 0);
+
     Tokenizer(bool case_feature = false,
               const std::string& joiner = joiner_marker);
+
     ~Tokenizer();
 
     void tokenize(const std::string& text,
@@ -57,8 +80,16 @@ namespace onmt
     bool _segment_case;
     bool _segment_numbers;
     bool _cache_bpe_model;
+    Morfessor* _morfessor;
+    bool _cache_morfessor_model;
+    float _addcount;
+    size_t _maxlen;
+    size_t _nbest;
+    size_t _beam;
+    bool _verbose;
 
     std::vector<std::string> bpe_segment(const std::vector<std::string>& tokens);
+    std::vector<std::string> morfessor_segment(const std::vector<std::string>& tokens);
 
     bool has_left_join(const std::string& word);
     bool has_right_join(const std::string& word);
