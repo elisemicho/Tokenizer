@@ -26,20 +26,14 @@ namespace onmt
     } 
   };
 
-  Morfessor::Morfessor(const std::string& model_path, float a, size_t m, size_t b, size_t n, std::string j, size_t v)
-    : beam(0)
-    , nbest(0)
-    , addcount(0)
-    , maxlen(30)
-    , verbose(0)
-    , joiner("￭")
+  Morfessor::Morfessor(const std::string& model_path)
+    : beam (0)
+    , nbest (0)
+    , addcount (0) //constant for additive smoothing (0 = no smoothing)
+    , maxlen (30) //maximum length for subwords
+    , joiner (0)
+    , verbose (0)
   {
-    beam=b;
-    nbest=n;
-    addcount=a; //constant for additive smoothing (0 = no smoothing)
-    maxlen=m; //maximum length for subwords
-    joiner=j;
-    verbose=v;
 
     n_lexicon_subwords=0; //number of words in lexicon -> lexicon_coding.boundaries
     std::string count_sep=" ";
@@ -167,7 +161,7 @@ namespace onmt
             std::cout << " ] cost=" << currcost << (to==word_length-1?" [FINAL]":"") << std::endl;
           }
           n++;
-          if (beam>0 && n==beam) break;
+          if (beam > 0 && n == beam) break;
         }
       }
     }
@@ -188,12 +182,13 @@ namespace onmt
       }
       std::pair<float,std::string> p = std::make_pair((*it_Hyps)._cost, segmentation.str());
       segmentations.push_back(p);
-      if (nbest==0 || segmentations.size()==nbest) break; 
+      if (nbest == 0 || segmentations.size() == nbest) break;
     }
     return segmentations;
   }
 
-  float Morfessor::get_cost(size_t subword_length, size_t word_length, std::string& subword, bool& skip){
+  float Morfessor::get_cost(size_t subword_length, size_t word_length, std::string& subword, bool& skip) const
+  {
     float cost=0;
     size_t freq=0;
     boost::unordered::unordered_map<std::string,size_t>::iterator it_subword2freq = subword2freq.find(subword);

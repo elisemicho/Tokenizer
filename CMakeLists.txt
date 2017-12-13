@@ -34,6 +34,7 @@ add_library(${PROJECT_NAME}
   src/ITokenizer.cc
   src/SpaceTokenizer.cc
   src/Tokenizer.cc
+  src/Alphabet.cc
   src/unicode/Data.cc
   src/unicode/Unicode.cc
   src/Morfessor.cc
@@ -45,8 +46,9 @@ target_link_libraries(${PROJECT_NAME}
   ${Boost_LIBRARIES})
 if (NOT LIB_ONLY)
   add_subdirectory(cli)
-  add_subdirectory(test)
 endif()
+
+add_subdirectory(test)
 
 install(
   TARGETS ${PROJECT_NAME}

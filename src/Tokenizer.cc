@@ -1,5 +1,9 @@
 #include "onmt/Tokenizer.h"
 
+#include <algorithm>
+#include <mutex>
+
+#include "onmt/Alphabet.h"
 #include "onmt/CaseModifier.h"
 #include "onmt/unicode/Unicode.h"
 
@@ -8,12 +12,6 @@
 namespace onmt
 {
 
-  std::unordered_map<std::string, BPE*> bpe_cache;
-  std::mutex bpe_cache_mutex;
-
-  static std::unordered_map<std::string, Morfessor*> morfessor_cache;
-  static std::mutex morfessor_cache_mutex;
-
   const std::string Tokenizer::joiner_marker("￭");
   const std::map<std::string, std::string> substitutes = {
                                                       { "￭", "■" },
@@ -21,8 +19,8 @@ namespace onmt
                                                       { "％", "%" },
                                                       { "＃", "#" },
                                                       { "：", ":" }};
-  const std::string ph_marker_open = "｟";
-  const std::string ph_marker_close = "｠";
+  const std::string Tokenizer::ph_marker_open = "｟";
+  const std::string Tokenizer::ph_marker_close = "｠";
   const std::string protected_character = "％";
 
   const std::unordered_map<std::string, onmt::Tokenizer::Mode> Tokenizer::mapMode = {
@@ -30,6 +28,12 @@ namespace onmt
     { "conservative", onmt::Tokenizer::Mode::Conservative },
     { "space", onmt::Tokenizer::Mode::Space }
   };
+
+  static std::unordered_map<std::string, BPE*> bpe_cache;
+  static std::mutex bpe_cache_mutex;
+
+  static std::unordered_map<std::string, Morfessor*> morfessor_cache;
+  static std::mutex morfessor_cache_mutex;
 
   static BPE* load_bpe(const std::string& bpe_model_path)
   {
@@ -44,7 +48,7 @@ namespace onmt
     return bpe;
   }
 
-  static Morfessor* load_morfessor(const std::string& morfessor_model_path, float a, size_t m, size_t b, size_t n, std::string j, size_t v)
+  static Morfessor* load_morfessor(const std::string& morfessor_model_path)
   {
     std::lock_guard<std::mutex> lock(morfessor_cache_mutex);
 
@@ -52,7 +56,7 @@ namespace onmt
     if (it != morfessor_cache.end())
       return it->second;
 
-    Morfessor* morfessor = new Morfessor(morfessor_model_path, a, m, b, n, j, v);
+    Morfessor* morfessor = new Morfessor(morfessor_model_path);
     morfessor_cache[morfessor_model_path] = morfessor;
     return morfessor;
   }
@@ -60,92 +64,41 @@ namespace onmt
 
   // constructor of Tokenizer with BPE
   Tokenizer::Tokenizer(Mode mode,
-                       const std::string& bpe_model_path,
-                       bool case_feature,
-                       bool joiner_annotate,
-                       bool joiner_new,
-                       const std::string& joiner,
-                       bool with_separators,
-                       bool segment_case,
-                       bool segment_numbers,
-                       bool cache_bpe_model)
-    : _mode(mode)
-    , _bpe(nullptr)
-    , _case_feature(case_feature)
-    , _joiner_annotate(joiner_annotate)
-    , _joiner_new(joiner_new)
-    , _joiner(joiner)
-    , _with_separators(with_separators)
-    , _segment_case(segment_case)
-    , _segment_numbers(segment_numbers)
-    , _cache_bpe_model(cache_bpe_model)
-  {
-    if (!bpe_model_path.empty())
-    {
-      if (cache_bpe_model)
-        _bpe = load_bpe(bpe_model_path);
-      else
-        _bpe = new BPE(bpe_model_path);
-    }
-  }
-
-  // constructor of Tokenizer with Morfessor
-  Tokenizer::Tokenizer(Mode mode,
-                       bool case_feature,
-                       bool joiner_annotate,
-                       bool joiner_new,
-                       const std::string& joiner,
-                       bool with_separators,
-                       bool segment_case,
-                       bool segment_numbers,
-                       const std::string& morfessor_model_path,
-                       bool cache_morfessor_model,
-                       float addcount,
-                       size_t maxlen,
-                       size_t nbest,
-                       size_t beam,
-                       bool verbose)
-    : _mode(mode)
-    , _case_feature(case_feature)
-    , _joiner_annotate(joiner_annotate)
-    , _joiner_new(joiner_new)
-    , _joiner(joiner)
-    , _with_separators(with_separators)
-    , _segment_case(segment_case)
-    , _segment_numbers(segment_numbers)
-    , _morfessor(nullptr)
-    , _cache_morfessor_model(cache_morfessor_model)
-    , _addcount(addcount)
-    , _maxlen(maxlen)
-    , _nbest(nbest)
-    , _beam(beam)
-    , _verbose(verbose)
-  {
-    if (!morfessor_model_path.empty())
-    {
-      if (cache_morfessor_model)
-        _morfessor = load_morfessor(morfessor_model_path, addcount,maxlen,beam,nbest,joiner,verbose);
-      else
-        _morfessor = new Morfessor(morfessor_model_path, addcount,maxlen,beam,nbest,joiner,verbose);
-    }
-  }
-
-  Tokenizer::Tokenizer(bool case_feature,
+                       int flags,
+                       const std::string& method,
+                       const std::string& model_path,
                        const std::string& joiner)
-    : _mode(Mode::Conservative)
-    , _case_feature(case_feature)
+    : _mode(mode)
+    , _case_feature(flags & Flags::CaseFeature)
+    , _joiner_annotate(flags & Flags::JoinerAnnotate)
+    , _joiner_new(flags & Flags::JoinerNew)
+    , _with_separators(flags & Flags::WithSeparators)
+    , _segment_case(flags & Flags::SegmentCase)
+    , _segment_numbers(flags & Flags::SegmentNumbers)
+    , _segment_alphabet_change(flags & Flags::SegmentAlphabetChange)
+    , _cache_bpe_model(flags & Flags::CacheBPEModel)
+    , _bpe(nullptr)
+    , _cache_morfessor_model(flags & Flags::CacheMorfessorModel)
+    , _morfessor(nullptr)
     , _joiner(joiner)
   {
+    if(method == "bpe"){
+      set_bpe_model(model_path, _cache_bpe_model);
+    } else if(method == "morf"){
+      set_morfessor_model(model_path, _cache_morfessor_model);
+    }
   }
 
   Tokenizer::~Tokenizer()
   {
     if (!_cache_bpe_model)
       delete _bpe;
+    if (!_cache_morfessor_model)
+      delete _morfessor;
   }
 
   std::string Tokenizer::detokenize(const std::vector<std::string>& words,
-                                    const std::vector<std::vector<std::string> >& features)
+                                    const std::vector<std::vector<std::string> >& features) const
   {
     std::string line;
 
@@ -177,7 +130,7 @@ namespace onmt
   // separate the text in words and subtokenize according to the chosen method
   void Tokenizer::tokenize(const std::string& text,
                            std::vector<std::string>& words,
-                           std::vector<std::vector<std::string> >& features)
+                           std::vector<std::vector<std::string> >& features) const
   {
     if (_mode == Mode::Space) {
       std::vector<std::string> chunks = unicode::split_utf8(text, " ");
@@ -226,7 +179,7 @@ namespace onmt
         bool isSeparator = unicode::is_separator(v);
 
         if (placeholder) {
-            if (c == ph_marker_close) {
+            if (c == Tokenizer::ph_marker_close) {
               token = token + c;
               letter = true;
               prev_alphabet = "placeholder";
@@ -241,7 +194,7 @@ namespace onmt
               token += c;
             }
           }
-          else if (c == ph_marker_open) {
+          else if (c == Tokenizer::ph_marker_open) {
             std::string initc;
             if (!space) {
               if (_joiner_annotate && !_joiner_new) {
@@ -315,6 +268,10 @@ namespace onmt
             cur_letter = unicode::is_letter(v, type_letter);
             cur_number = unicode::is_number(v);
 
+            std::string alphabet;
+            if (cur_letter && (_segment_alphabet_change || !_segment_alphabet.empty()))
+              alphabet = get_alphabet(v);
+
             if (unicode::is_mark(v)) {
               // if we have a mark, we keep type of previous character
               cur_letter = letter;
@@ -327,16 +284,22 @@ namespace onmt
                   || (c == "-" && letter)
                   || (c == "_")
                   || (letter && (c == "." || c == ",") && (unicode::is_number(next_v) || unicode::is_letter(next_v, type_letter))))
-                cur_letter = true;
+                {
+                  cur_letter = true;
+                  alphabet = "Number";
+                }
             }
 
             if (cur_letter)
             {
-              if ((!letter && !space) ||
-                  (letter && !unicode::is_mark(v) &&
-                    (prev_alphabet == "placeholder" ||
-                     (_segment_case && letter && ((type_letter == unicode::_letter_upper && !uppercase) ||
-                                                  (type_letter == unicode::_letter_lower && uppercase_sequence))))))
+              if ((!letter && !space)
+                  || (letter && !unicode::is_mark(v) &&
+                      ((prev_alphabet == alphabet && is_alphabet_to_segment(alphabet))
+                       || (prev_alphabet != alphabet && _segment_alphabet_change)
+                       || (prev_alphabet == "placeholder"
+                           || (_segment_case && letter
+                               && ((type_letter == unicode::_letter_upper && !uppercase)
+                                   || (type_letter == unicode::_letter_lower && uppercase_sequence)))))))
               {
                 if (_joiner_annotate && !_joiner_new)
                   token += _joiner;
@@ -365,7 +328,7 @@ namespace onmt
               number = false;
               other = false;
               space = false;
-              prev_alphabet = "letter";
+              prev_alphabet = alphabet;
             }
             else if (cur_number)
             {
@@ -465,8 +428,7 @@ namespace onmt
     }
   }
 
-  // returns the segmentation of the words according to BPE
-  std::vector<std::string> Tokenizer::bpe_segment(const std::vector<std::string>& tokens)
+  std::vector<std::string> Tokenizer::bpe_segment(const std::vector<std::string>& tokens) const
   {
     std::vector<std::string> segments;
 
@@ -474,7 +436,7 @@ namespace onmt
     {
       std::string token = tokens[i];
 
-      if (token.find(ph_marker_open) != std::string::npos) {
+      if (token.find(Tokenizer::ph_marker_open) != std::string::npos) {
         segments.push_back(token);
         continue;
       }
@@ -524,8 +486,8 @@ namespace onmt
     return segments;
   }
 
-  // returns the best segmentation of the words according to Morfessor
-  std::vector<std::string> Tokenizer::morfessor_segment(const std::vector<std::string>& tokens){
+  std::vector<std::string> Tokenizer::morfessor_segment(const std::vector<std::string>& tokens) const
+  {
 
     std::vector<std::string> segments;
 
@@ -537,6 +499,7 @@ namespace onmt
       std::string token = tokens[i];
       nsegments = _morfessor->segment(token);
 
+      /*
       if (_nbest==0){ //onebest
         std::cout << (i?" ":"") << nsegments[0].second;
       }
@@ -546,19 +509,76 @@ namespace onmt
         }
         std::cout << std::endl;
       }
-
+      */
       segments.push_back(nsegments[0].second);//we keep only the best segmentation for tokenization
     }
     return segments;
   }
 
+  Tokenizer& Tokenizer::set_joiner(const std::string& joiner)
+  {
+    _joiner = joiner;
+    return *this;
+  }
 
-  bool Tokenizer::has_left_join(const std::string& word)
+  Tokenizer& Tokenizer::set_bpe_model(const std::string& model_path, bool cache_model)
+  {
+    if (_bpe != nullptr && !_cache_bpe_model)
+    {
+      delete _bpe;
+    }
+
+    if (!model_path.empty())
+    {
+      if (cache_model)
+        _bpe = load_bpe(model_path);
+      else
+        _bpe = new BPE(model_path);
+
+      _cache_bpe_model = cache_model;
+    }
+
+    return *this;
+  }
+
+  Tokenizer& Tokenizer::set_morfessor_model(const std::string& model_path, bool cache_model)
+  {
+    if (_morfessor != nullptr && !_cache_morfessor_model)
+    {
+      delete _morfessor;
+    }
+
+    if (!model_path.empty())
+    {
+      if (cache_model)
+        _morfessor = load_morfessor(model_path);
+      else
+        _morfessor = new Morfessor(model_path);
+
+      _cache_morfessor_model = cache_model;
+    }
+
+    return *this;
+  }
+
+  Tokenizer& Tokenizer::add_alphabet_to_segment(const std::string& alphabet)
+  {
+    _segment_alphabet.push_back(alphabet);
+    return *this;
+  }
+
+  bool Tokenizer::is_alphabet_to_segment(const std::string& alphabet) const
+  {
+    return (std::find(_segment_alphabet.begin(), _segment_alphabet.end(), alphabet)
+            != _segment_alphabet.end());
+  }
+
+  bool Tokenizer::has_left_join(const std::string& word) const
   {
     return (word.length() >= _joiner.length() && word.substr(0, _joiner.length()) == _joiner);
   }
 
-  bool Tokenizer::has_right_join(const std::string& word)
+  bool Tokenizer::has_right_join(const std::string& word) const
   {
     return (word.length() >= _joiner.length()
             && word.substr(word.length() - _joiner.length(), _joiner.length()) == _joiner);

@@ -1,6 +1,5 @@
 #pragma once
 
-#include <mutex>
 #include <unordered_map>
 
 #include "onmt/ITokenizer.h"
@@ -21,78 +20,72 @@ namespace onmt
       Space
     };
 
-    static std::unordered_map<std::string, BPE*> bpe_cache;
-    static std::mutex bpe_cache_mutex;
-
-    static std::unordered_map<std::string, Morfessor*> morfessor_cache;
-    static std::mutex morfessor_cache_mutex;
+    enum Flags
+    {
+      None = 0,
+      CaseFeature = 1,
+      JoinerAnnotate = 2,
+      JoinerNew = 4,
+      WithSeparators = 8,
+      SegmentCase = 16,
+      SegmentNumbers = 32,
+      SegmentAlphabetChange = 64,
+      Method = 0,
+      CacheBPEModel = 128,
+      CacheMorfessorModel = 126
+    };
 
     static const std::string joiner_marker;
+    static const std::string ph_marker_open;
+    static const std::string ph_marker_close;
+
     static const std::unordered_map<std::string, onmt::Tokenizer::Mode> mapMode;
 
-    Tokenizer(Mode mode = Mode::Conservative,
-              const std::string& bpe_model_path = "",
-              bool case_feature = false,
-              bool joiner_annotate = false,
-              bool joiner_new = false,
-              const std::string& joiner = joiner_marker,
-              bool with_separators = false,
-              bool segment_case = false,
-              bool segment_numbers = false,
-              bool cache_bpe_model = false);
-
-    Tokenizer(Mode mode = Mode::Conservative,
-              bool case_feature = false,
-              bool joiner_annotate = false,
-              bool joiner_new = false,
-              const std::string& joiner = joiner_marker,
-              bool with_separators = false,
-              bool segment_case = false,
-              bool segment_numbers = false,
-              const std::string& morfessor_model_path = "",
-              bool cache_morfessor_model = false,
-              float addcount = 0,
-              size_t maxlen = 30,
-              size_t nbest = 0,
-              size_t beam = 0,
-              bool verbose = 0);
-
-    Tokenizer(bool case_feature = false,
+    Tokenizer(Mode mode,
+              int flags = Flags::None,
+              const std::string& method = "",
+              const std::string& model_path = "",
               const std::string& joiner = joiner_marker);
 
     ~Tokenizer();
 
     void tokenize(const std::string& text,
                   std::vector<std::string>& words,
-                  std::vector<std::vector<std::string> >& features) override;
+                  std::vector<std::vector<std::string> >& features) const override;
 
     std::string detokenize(const std::vector<std::string>& words,
-                           const std::vector<std::vector<std::string> >& features) override;
+                           const std::vector<std::vector<std::string> >& features) const override;
+
+    Tokenizer& set_joiner(const std::string& joiner);
+    Tokenizer& set_bpe_model(const std::string& model_path, bool cache_model = false);
+    Tokenizer& set_morfessor_model(const std::string& model_path, bool cache_model = false);
+    Tokenizer& add_alphabet_to_segment(const std::string& alphabet);
+    bool is_alphabet_to_segment(const std::string& alphabet) const;
 
   private:
     Mode _mode;
-    BPE* _bpe;
+
     bool _case_feature;
     bool _joiner_annotate;
     bool _joiner_new;
-    std::string _joiner;
     bool _with_separators;
     bool _segment_case;
     bool _segment_numbers;
+    bool _segment_alphabet_change;
+
     bool _cache_bpe_model;
-    Morfessor* _morfessor;
+    const BPE* _bpe;
     bool _cache_morfessor_model;
-    float _addcount;
-    size_t _maxlen;
-    size_t _nbest;
-    size_t _beam;
-    bool _verbose;
+    const Morfessor* _morfessor;
 
-    std::vector<std::string> bpe_segment(const std::vector<std::string>& tokens);
-    std::vector<std::string> morfessor_segment(const std::vector<std::string>& tokens);
+    std::string _joiner;
+    std::vector<std::string> _segment_alphabet;
 
-    bool has_left_join(const std::string& word);
-    bool has_right_join(const std::string& word);
+    std::vector<std::string> bpe_segment(const std::vector<std::string>& tokens) const;
+    std::vector<std::string> morfessor_segment(const std::vector<std::string>& tokens) const;
+
+    bool has_left_join(const std::string& word) const;
+    bool has_right_join(const std::string& word) const;
   };
 
 }
