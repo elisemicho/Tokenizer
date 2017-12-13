@@ -207,7 +207,7 @@ TEST(TokenizerTest, BPECaseInsensitive) {
 TEST(TokenizerTest, MorfessorBasic) {
 auto tokenizer = std::unique_ptr<ITokenizer>(
   new Tokenizer(Tokenizer::Mode::Conservative, Tokenizer::Flags::JoinerAnnotate,
-                "morf", get_data("morf-models/latlexicon")));
+                "morf", get_data("morfessor-models/lat.lexicon")));
   test_tok_and_detok(tokenizer,
                     "abcdimprovement联合国",
                     "abc￭d￭improve￭ment￭联￭合￭国");
