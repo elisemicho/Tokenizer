@@ -10,7 +10,7 @@ namespace po = boost::program_options;
 
 int main(int argc, char* argv[])
 {
-  po::options_description desc("Tokenization with BPE");
+  po::options_description desc("Tokenization");
   desc.add_options()
     ("help,h", "display available options")
 
@@ -25,7 +25,7 @@ int main(int argc, char* argv[])
     ("segment_alphabet", po::value<std::string>()->default_value(""), "comma-separated list of alphabets on which to segment all letters.")
     ("segment_alphabet_change", po::bool_switch()->default_value(false), "Segment if the alphabet changes between 2 letters.")
 
-    ("method, meth", po::value<std::string>()->default_value(""), "subtokenization method 'bpe' for Byte Encoding Pairs or 'morf' for Morfessor")
+    ("method", po::value<std::string>()->default_value(""), "subtokenization method 'bpe' for Byte Encoding Pairs or 'morf' for Morfessor")
     ("model", po::value<std::string>()->default_value(""), "path to the model")
     ;
 

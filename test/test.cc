@@ -207,11 +207,30 @@ TEST(TokenizerTest, BPECaseInsensitive) {
 TEST(TokenizerTest, MorfessorBasic) {
 auto tokenizer = std::unique_ptr<ITokenizer>(
   new Tokenizer(Tokenizer::Mode::Conservative, Tokenizer::Flags::JoinerAnnotate,
-                "morf", get_data("morf-models/latlexicon")));
+                "morf", get_data("morfessor-models/lat.lexicon")));
   test_tok_and_detok(tokenizer,
                     "abcdimprovement联合国",
                     "abc￭d￭improve￭ment￭联￭合￭国");
 }
+
+TEST(TokenizerTest, MorfessorFrenchNews) {
+  auto tokenizer = std::unique_ptr<ITokenizer>(
+    new Tokenizer(Tokenizer::Mode::Conservative, Tokenizer::Flags::JoinerAnnotate,
+                  "morf", get_data("morfessor-models/model.morfessor.news.fr")));
+  test_tok_and_detok(tokenizer,
+                     "Aujourd’hui, encouragés par son appréciation constante, certains suggèrent qu’il pourrait grimper encore.",
+                     "Au￭jour￭d ’ hui , encouragé￭s par son appréciation constant￭e , certain￭s suggère￭nt qu ’ il pourrait grimper encore .");
+}
+/*
+TEST(TokenizerTest, MorfessorArabicNews) {
+  auto tokenizer = std::unique_ptr<ITokenizer>(
+    new Tokenizer(Tokenizer::Mode::Conservative, Tokenizer::Flags::JoinerAnnotate,
+                  "morf", get_data("morfessor-models/model.morfessor.news.ar")));
+  test_tok_and_detok(tokenizer,
+                     "abcdimprovement联合国",
+                     "abc￭d￭improve￭ment￭联￭合￭国");
+}
+*/
 
 int main(int argc, char *argv[]) {
   testing::InitGoogleTest(&argc, argv);

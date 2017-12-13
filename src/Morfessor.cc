@@ -1,4 +1,5 @@
-#include "onmt/Morfessor.h"
+#include <onmt/Morfessor.h>
+#include <onmt/Tokenizer.h>
 #include <fstream>
 #include <iostream>
 
@@ -30,16 +31,16 @@ namespace onmt
     , nbest (0)
     , addcount (0) //constant for additive smoothing (0 = no smoothing)
     , maxlen (30) //maximum length for subwords
-    , joiner (0)
+    , joiner (onmt::Tokenizer::joiner_marker)
     , verbose (0)
   {
 
-    n_lexicon_subwords=0; //number of words in lexicon -> lexicon_coding.boundaries
-    std::string count_sep=" ";
-    std::string pars_tag="#";
+    n_lexicon_subwords = 0; //number of words in lexicon -> lexicon_coding.boundaries
+    std::string count_sep = " ";
+    std::string pars_tag = "#";
 
     //boost::filesystem::ifstream file(model_path); // does not work
-    std::ifstream file(model_path.c_str());
+    std::ifstream file(model_path);
     if (!file.is_open())
       throw std::invalid_argument("Unable to open Morfessor model `" + model_path + "'");
 
