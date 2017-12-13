@@ -4,7 +4,6 @@
 
 namespace onmt
 {
-
   class Hyp
   {
   public:
@@ -38,8 +37,12 @@ namespace onmt
     n_lexicon_subwords=0; //number of words in lexicon -> lexicon_coding.boundaries
     std::string count_sep=" ";
     std::string pars_tag="#";
+
     //boost::filesystem::ifstream file(model_path); // does not work
-    std::ifstream file(model_path);
+    std::ifstream file(model_path.c_str());
+    if (!file.is_open())
+      throw std::invalid_argument("Unable to open Morfessor model `" + model_path + "'");
+
     std::string str;
 
     // first line in morfessor model contains 3 options separated by ;
@@ -66,20 +69,20 @@ namespace onmt
       if (pos==0){
         str = str.substr(pars_tag.size());
         pos = str.find(count_sep);
-        std::string name=str.substr(0,pos);
-        std::string val=str.substr(pos+count_sep.size());
-        if      (name=="corpus_coding.tokens")     {n_corpus_subwords = atoi(val.c_str());}
-        else if (name=="corpus_coding.boundaries") {n_corpus_words = atoi(val.c_str());}
-        else if (name=="corpus_coding.weight")     {corpus_weight = atof(val.c_str());}
+        std::string name = str.substr(0,pos);
+        std::string val = str.substr(pos+count_sep.size());
+        if      (name == "corpus_coding.tokens")     {n_corpus_subwords = atoi(val.c_str());}
+        else if (name == "corpus_coding.boundaries") {n_corpus_words = atoi(val.c_str());}
+        else if (name == "corpus_coding.weight")     {corpus_weight = atof(val.c_str());}
         continue;
       }
-      size_t freq=1;
-      std::string subword=str;
+      size_t freq = 1;
+      std::string subword = str;
       pos = str.find(count_sep);
       if (pos!=std::string::npos) {
-        std::string strfreq=str.substr(0,pos);
-        freq=atoi(strfreq.c_str());
-        subword=str.substr(pos+count_sep.size());
+        std::string strfreq = str.substr(0,pos);
+        freq = atoi(strfreq.c_str());
+        subword = str.substr(pos+count_sep.size());
       }
       boost::unordered::unordered_map<std::string,size_t>::iterator it = subword2freq.find(subword);
       if (it == subword2freq.end()) subword2freq[subword] = freq;
@@ -100,41 +103,42 @@ namespace onmt
     }
   }
 
-  std::vector<std::pair<float, std::string> > Morfessor::segment(std::string &word){
+  std::vector<std::pair<float, std::string> > Morfessor::segment(const std::string &word) const
+  {
     if (verbose) std::cout << "segment(" << word << ")" << std::endl;
 
     UnicodeString ucword = UnicodeString::fromUTF8(StringPiece(word.c_str())); //to split words i need to work with UnicodeString's
-    size_t word_length=ucword.length();      
+    size_t word_length = ucword.length();
 
     std::vector<std::multiset<Hyp, compareHyp> > Hyps; //search space
-    for (size_t from=0; from<=word_length; from++){ //hypotheses covering up to length from, will be stored in Hyps[from]
+    for (size_t from = 0; from <= word_length; from++){ //hypotheses covering up to length from, will be stored in Hyps[from]
       std::multiset<Hyp, compareHyp> list;
       Hyps.push_back(list);
     }
     //empty hypothesis to start the search
-    size_t hypid=0;
+    size_t hypid = 0;
     std::vector<size_t> v;
-    Hyp hempty(0.0,v,hypid++);
+    Hyp hempty(0.0, v, hypid++);
     Hyps[0].insert(hempty);
     
     float bestcostfinalhyp;
     //beam search
-    for (size_t from=0; from<word_length; from++){ //next subword starts at from
+    for (size_t from = 0; from < word_length; from++){ //next subword starts at from
       
       if (verbose) std::cout << "\tExpanding hyps in list=" << from << " nhyps=" << Hyps[from].size() << std::endl;
 
-      for (size_t to=from; to<word_length && (maxlen==0 || to-from+1<=maxlen); to++){ //subword is [from,to]
+      for (size_t to = from; to < word_length && (maxlen == 0 || to-from+1 <= maxlen); to++){ //subword is [from,to]
         UnicodeString ucsubword;
         ucword.extract(from, to-from+1, ucsubword);
         std::string subword;
         ucsubword.toUTF8String(subword);
-        bool skip=false;
-        float cost=get_cost(to-from+1,word_length,subword,skip);
+        bool skip = false;
+        float cost = get_cost(to-from+1, word_length, subword, skip);
         if (skip) continue;
 
         if (verbose){
-          boost::unordered::unordered_map<std::string,size_t>::iterator it_subword2freq = subword2freq.find(subword);
-          std::cout << "\t\tword[" << from << "," << to << "]='" << subword << "' freq=" << (it_subword2freq==subword2freq.end()?0:it_subword2freq->second) << std::endl;
+          boost::unordered::unordered_map<std::string,size_t>::const_iterator it_subword2freq = subword2freq.find(subword);
+          std::cout << "\t\tword[" << from << "," << to << "]='" << subword << "' freq=" << (it_subword2freq == subword2freq.end()?0:it_subword2freq -> second) << std::endl;
         }
     
         size_t n=0; //n hypothesis to be expanded in Hyps[from]
@@ -144,21 +148,21 @@ namespace onmt
           float currcost = fathercost + cost;
           
           //i do not add the hypothesis if one-best and its cost is worst than the best final hyp (and keep track of the best final hypothesis cost)
-          if (nbest==0){
-            if (Hyps[word_length].size() && bestcostfinalhyp<currcost) continue;
-            if (to+1==word_length && (Hyps[word_length].size()==0 || currcost<bestcostfinalhyp)) bestcostfinalhyp=currcost;
+          if (nbest == 0){
+            if (Hyps[word_length].size() && bestcostfinalhyp < currcost) continue;
+            if (to+1 == word_length && (Hyps[word_length].size() == 0 || currcost < bestcostfinalhyp)) bestcostfinalhyp = currcost;
           }
 
           //insert new hypothesis
           std::vector<size_t> currsizes = fathersizes;
           currsizes.push_back(to-from+1);
-          Hyp currh(currcost,currsizes,hypid++);
+          Hyp currh(currcost, currsizes, hypid++);
           Hyps[to+1].insert(currh);
 
           if (verbose){
             std::cout << "\t\t\t" << " father:" << (*it_Hyps)._id << " hyp:" << currh._id << " [";
-            for (size_t i=0; i<currsizes.size(); i++){std::cout << " " << currsizes[i];}
-            std::cout << " ] cost=" << currcost << (to==word_length-1?" [FINAL]":"") << std::endl;
+            for (size_t i = 0; i < currsizes.size(); i++){std::cout << " " << currsizes[i];}
+            std::cout << " ] cost=" << currcost << (to == word_length-1?" [FINAL]":"") << std::endl;
           }
           n++;
           if (beam > 0 && n == beam) break;
@@ -167,12 +171,12 @@ namespace onmt
     }
       
     std::vector<std::pair<float,std::string> > segmentations;
-    std::multiset<Hyp, compareHyp>::iterator it_Hyps=Hyps[word_length].begin();
-    for (std::multiset<Hyp, compareHyp>::iterator it_Hyps=Hyps[word_length].begin(); it_Hyps!=Hyps[word_length].end(); it_Hyps++){
-      std::vector<size_t> sizes=(*it_Hyps)._sizes;
+    std::multiset<Hyp, compareHyp>::iterator it_Hyps = Hyps[word_length].begin();
+    for (std::multiset<Hyp, compareHyp>::iterator it_Hyps = Hyps[word_length].begin(); it_Hyps!=Hyps[word_length].end(); it_Hyps++){
+      std::vector<size_t> sizes = (*it_Hyps)._sizes;
       std::stringstream segmentation;
-      size_t from=0;
-      for (size_t i=0; i<sizes.size(); i++){
+      size_t from = 0;
+      for (size_t i = 0; i<sizes.size(); i++){
         UnicodeString ucsubword; 
         ucword.extract(from, sizes[i], ucsubword);
         std::string subword;
@@ -189,12 +193,12 @@ namespace onmt
 
   float Morfessor::get_cost(size_t subword_length, size_t word_length, std::string& subword, bool& skip) const
   {
-    float cost=0;
-    size_t freq=0;
-    boost::unordered::unordered_map<std::string,size_t>::iterator it_subword2freq = subword2freq.find(subword);
-    if (it_subword2freq != subword2freq.end()) freq=it_subword2freq->second;
-    float logtokens=0;
-    if (n_corpus_subwords+n_corpus_words+addcount > 0) logtokens = log(n_corpus_subwords + n_corpus_words + addcount);
+    float cost = 0;
+    size_t freq = 0;
+    boost::unordered::unordered_map<std::string,size_t>::const_iterator it_subword2freq = subword2freq.find(subword);
+    if (it_subword2freq != subword2freq.end()) freq = it_subword2freq -> second;
+    float logtokens = 0;
+    if (n_corpus_subwords + n_corpus_words + addcount > 0) logtokens = log(n_corpus_subwords + n_corpus_words + addcount);
     float badlikelihood = word_length*logtokens + 1.0; //worst cost
 
     if (freq>0){ // subword exists     

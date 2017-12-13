@@ -208,9 +208,9 @@ TEST(TokenizerTest, MorfessorBasic) {
 auto tokenizer = std::unique_ptr<ITokenizer>(
   new Tokenizer(Tokenizer::Mode::Conservative, Tokenizer::Flags::JoinerAnnotate,
                 "morf", get_data("morf-models/latlexicon")));
-test_tok_and_detok(tokenizer,
-"abcdimprovement联合国",
-"abc￭d￭improve￭ment￭联￭合￭国");
+  test_tok_and_detok(tokenizer,
+                    "abcdimprovement联合国",
+                    "abc￭d￭improve￭ment￭联￭合￭国");
 }
 
 int main(int argc, char *argv[]) {

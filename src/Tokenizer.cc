@@ -61,8 +61,6 @@ namespace onmt
     return morfessor;
   }
 
-
-  // constructor of Tokenizer with BPE
   Tokenizer::Tokenizer(Mode mode,
                        int flags,
                        const std::string& method,

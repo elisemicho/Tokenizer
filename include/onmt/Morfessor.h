@@ -16,7 +16,7 @@ namespace onmt
   public:
     Morfessor(const std::string& model_path);
 
-    std::vector<std::pair<float, std::string> > segment(std::string &word);
+    std::vector<std::pair<float, std::string> > segment(const std::string &word) const;
     
   private:
     boost::unordered::unordered_map<std::string,size_t> subword2freq; //'Afternoon' => 4
