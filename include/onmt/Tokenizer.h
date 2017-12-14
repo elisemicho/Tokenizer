@@ -30,7 +30,6 @@ namespace onmt
       SegmentCase = 16,
       SegmentNumbers = 32,
       SegmentAlphabetChange = 64,
-      Method = 0,
       CacheBPEModel = 128,
       CacheMorfessorModel = 126
     };
