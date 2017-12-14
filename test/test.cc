@@ -221,16 +221,16 @@ TEST(TokenizerTest, MorfessorFrenchNews) {
                      "Aujourd’hui, encouragés par son appréciation constante, certains suggèrent qu’il pourrait grimper encore.",
                      "Au￭jour￭d ’ hui , encouragé￭s par son appréciation constant￭e , certain￭s suggère￭nt qu ’ il pourrait grimper encore .");
 }
-/*
+
 TEST(TokenizerTest, MorfessorArabicNews) {
   auto tokenizer = std::unique_ptr<ITokenizer>(
     new Tokenizer(Tokenizer::Mode::Conservative, Tokenizer::Flags::JoinerAnnotate,
                   "morf", get_data("morfessor-models/model.morfessor.news.ar")));
   test_tok_and_detok(tokenizer,
-                     "abcdimprovement联合国",
-                     "abc￭d￭improve￭ment￭联￭合￭国");
+                     "والآن بعد أن عبر الذهب حاجز الألف السحري، فما الذي يمنعه من الارتفاع إلى عشرة أمثال؟",
+                     "و￭الآن بعد أن عبر الذهب حاجز ال￭ألف ال￭سحري ، ف￭ما الذي يمنع￭ه من ال￭ارتفاع إلى عشرة أمثال ؟");
 }
-*/
+
 
 int main(int argc, char *argv[]) {
   testing::InitGoogleTest(&argc, argv);
