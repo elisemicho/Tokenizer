@@ -59,6 +59,7 @@ namespace onmt
     Tokenizer& set_joiner(const std::string& joiner);
     Tokenizer& set_bpe_model(const std::string& model_path, bool cache_model = false);
     Tokenizer& set_morfessor_model(const std::string& model_path, bool cache_model = false);
+
     bool add_alphabet_to_segment(const std::string& alphabet);
     bool is_alphabet_to_segment(const std::string& alphabet) const;
 

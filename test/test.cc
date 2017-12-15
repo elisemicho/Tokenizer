@@ -221,25 +221,25 @@ auto tokenizer = std::unique_ptr<ITokenizer>(
                 "morf", get_data("morfessor-models/lat.lexicon")));
   test_tok_and_detok(tokenizer,
                     "abcdimprovement联合国",
-                    "abc￭d￭improve￭ment￭联￭合￭国");
+                    "abc￭ d￭ improve￭ ment￭ 联￭ 合￭ 国");
 }
 
 TEST(TokenizerTest, MorfessorFrenchNews) {
   auto tokenizer = std::unique_ptr<ITokenizer>(
     new Tokenizer(Tokenizer::Mode::Conservative, Tokenizer::Flags::JoinerAnnotate,
-                  "morf", get_data("morfessor-models/model.morfessor.news.fr")));
+                  "morf", get_data("morfessor-models/model.morfessor.news_fr")));
   test_tok_and_detok(tokenizer,
-                     "Aujourd’hui, encouragés par son appréciation constante, certains suggèrent qu’il pourrait grimper encore.",
-                     "Au￭jour￭d ’ hui , encouragé￭s par son appréciation constant￭e , certain￭s suggère￭nt qu ’ il pourrait grimper encore .");
+                     "En décembre dernier, mes collègues économistes Martin Feldstein et Nouriel Roubini ont chacun publié une tribune libre dans laquelle ils doutaient courageusement du marché haussier, soulignant de manière sensée les risques liés à l’or.",
+                     "En décembre dernier ￭, mes collègue￭ s économiste￭ s Martin Fe￭ ld￭ stein et Nour￭ iel Roubini ont chacun publié une tribu￭ ne libre dans laquelle ils douta￭ ient courageuse￭ ment du marché haussier ￭, soulign￭ ant de manière sensée les risque￭ s liés à l ￭’￭ or ￭.");
 }
 
 TEST(TokenizerTest, MorfessorArabicNews) {
   auto tokenizer = std::unique_ptr<ITokenizer>(
     new Tokenizer(Tokenizer::Mode::Conservative, Tokenizer::Flags::JoinerAnnotate,
-                  "morf", get_data("morfessor-models/model.morfessor.news.ar")));
+                  "morf", get_data("morfessor-models/model.morfessor.news_ar")));
   test_tok_and_detok(tokenizer,
                      "والآن بعد أن عبر الذهب حاجز الألف السحري، فما الذي يمنعه من الارتفاع إلى عشرة أمثال؟",
-                     "و￭الآن بعد أن عبر الذهب حاجز ال￭ألف ال￭سحري ، ف￭ما الذي يمنع￭ه من ال￭ارتفاع إلى عشرة أمثال ؟");
+                     "و￭ الآن بعد أن عبر الذهب حاجز ال￭ ألف ال￭ سحري ￭، ف￭ ما الذي يمنع￭ ه من ال￭ ارتفاع إلى عشرة أمثال ￭؟");
 }
 
 
