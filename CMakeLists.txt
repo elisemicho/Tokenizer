@@ -46,14 +46,11 @@ target_link_libraries(${PROJECT_NAME}
   ${ICU_LIBRARIES}
   ${Boost_LIBRARIES})
 
-if (WITH_PYTHON_BINDINGS)
-  add_subdirectory(bindings)
-endif()
-
 if (NOT LIB_ONLY)
   add_subdirectory(cli)
 endif()
 
+add_subdirectory(bindings)
 add_subdirectory(test)
 
 install(
