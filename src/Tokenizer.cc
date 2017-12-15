@@ -7,8 +7,6 @@
 #include "onmt/CaseModifier.h"
 #include "onmt/unicode/Unicode.h"
 
-#include <iostream>
-
 namespace onmt
 {
 
@@ -32,9 +30,6 @@ namespace onmt
   static std::unordered_map<std::string, BPE*> bpe_cache;
   static std::mutex bpe_cache_mutex;
 
-  static std::unordered_map<std::string, Morfessor*> morfessor_cache;
-  static std::mutex morfessor_cache_mutex;
-
   static BPE* load_bpe(const std::string& bpe_model_path)
   {
     std::lock_guard<std::mutex> lock(bpe_cache_mutex);
@@ -48,23 +43,9 @@ namespace onmt
     return bpe;
   }
 
-  static Morfessor* load_morfessor(const std::string& morfessor_model_path)
-  {
-    std::lock_guard<std::mutex> lock(morfessor_cache_mutex);
-
-    auto it = morfessor_cache.find(morfessor_model_path);
-    if (it != morfessor_cache.end())
-      return it->second;
-
-    Morfessor* morfessor = new Morfessor(morfessor_model_path);
-    morfessor_cache[morfessor_model_path] = morfessor;
-    return morfessor;
-  }
-
   Tokenizer::Tokenizer(Mode mode,
                        int flags,
-                       const std::string& method,
-                       const std::string& model_path,
+                       const std::string& bpe_model_path,
                        const std::string& joiner)
     : _mode(mode)
     , _case_feature(flags & Flags::CaseFeature)
@@ -76,23 +57,15 @@ namespace onmt
     , _segment_alphabet_change(flags & Flags::SegmentAlphabetChange)
     , _cache_bpe_model(flags & Flags::CacheBPEModel)
     , _bpe(nullptr)
-    , _cache_morfessor_model(flags & Flags::CacheMorfessorModel)
-    , _morfessor(nullptr)
     , _joiner(joiner)
   {
-    if(method == "bpe"){
-      set_bpe_model(model_path, _cache_bpe_model);
-    } else if(method == "morf"){
-      set_morfessor_model(model_path, _cache_morfessor_model);
-    }
+    set_bpe_model(bpe_model_path, _cache_bpe_model);
   }
 
   Tokenizer::~Tokenizer()
   {
     if (!_cache_bpe_model)
       delete _bpe;
-    if (!_cache_morfessor_model)
-      delete _morfessor;
   }
 
   std::string Tokenizer::detokenize(const std::vector<std::string>& words,
@@ -125,7 +98,6 @@ namespace onmt
     return line;
   }
 
-  // separate the text in words and subtokenize according to the chosen method
   void Tokenizer::tokenize(const std::string& text,
                            std::vector<std::string>& words,
                            std::vector<std::vector<std::string> >& features) const
@@ -177,42 +149,42 @@ namespace onmt
         bool isSeparator = unicode::is_separator(v);
 
         if (placeholder) {
-          if (c == Tokenizer::ph_marker_close) {
-            token = token + c;
-            letter = true;
-            prev_alphabet = "placeholder";
-            placeholder = false;
-            space = false;
-          } else {
-            if (isSeparator) {
-              char buffer[10];
-              sprintf(buffer, "%04x", v);
-              c = protected_character + buffer;
+            if (c == Tokenizer::ph_marker_close) {
+              token = token + c;
+              letter = true;
+              prev_alphabet = "placeholder";
+              placeholder = false;
+              space = false;
+            } else {
+              if (isSeparator) {
+                char buffer[10];
+                sprintf(buffer, "%04x", v);
+                c = protected_character + buffer;
+              }
+              token += c;
+            }
+          }
+          else if (c == Tokenizer::ph_marker_open) {
+            std::string initc;
+            if (!space) {
+              if (_joiner_annotate && !_joiner_new) {
+                if ((letter && prev_alphabet != "placeholder") || number)
+                  initc = _joiner;
+                else
+                  token += _joiner;
+              }
+              words.push_back(token);
+              token = initc;
+              if (_joiner_annotate && _joiner_new)
+                words.push_back(_joiner);
+            } else if (other) {
+              if (_joiner_annotate && token.length() == 0) {
+                if (_joiner_new) words.push_back(_joiner);
+                else words[words.size()-1] += _joiner;
+              }
             }
             token += c;
-          }
-        }
-        else if (c == Tokenizer::ph_marker_open) {
-          std::string initc;
-          if (!space) {
-            if (_joiner_annotate && !_joiner_new) {
-              if ((letter && prev_alphabet != "placeholder") || number)
-                initc = _joiner;
-              else
-                token += _joiner;
-            }
-            words.push_back(token);
-            token = initc;
-            if (_joiner_annotate && _joiner_new)
-              words.push_back(_joiner);
-          } else if (other) {
-            if (_joiner_annotate && token.length() == 0) {
-              if (_joiner_new) words.push_back(_joiner);
-              else words[words.size()-1] += _joiner;
-            }
-          }
-          token += c;
-          placeholder = true;
+            placeholder = true;
         }
         else if (isSeparator)
         {
@@ -290,7 +262,6 @@ namespace onmt
 
             if (cur_letter)
             {
-              //puts joiners around punctuation marks
               if ((!letter && !space)
                   || (letter && !unicode::is_mark(v) &&
                       ((prev_alphabet == alphabet && is_alphabet_to_segment(alphabet))
@@ -400,26 +371,8 @@ namespace onmt
         words.push_back(token);
     }
 
-    /*
-    for (size_t i = 0; i < words.size(); ++i)
-    {
-      std::cout << words [i] << std::endl;
-    }
-    */
-
-    if (_bpe) {
+    if (_bpe)
       words = bpe_segment(words);
-    }
-    if (_morfessor){
-      words = morfessor_segment(words);
-    }
-
-    /*
-    for (size_t i = 0; i < words.size(); ++i)
-    {
-      std::cout << words [i] << std::endl;
-    }
-    */
 
     if (_case_feature)
     {
@@ -458,7 +411,6 @@ namespace onmt
       bool left_sep = false;
       bool right_sep = false;
 
-      //strips off the joiners around the token before BPE encoding
       if (_joiner_annotate && !_joiner_new)
       {
         if (has_left_join(token))
@@ -476,7 +428,6 @@ namespace onmt
 
       auto encoded = _bpe->encode(token);
 
-      // puts back the joiners around the token after BPE encoding
       if (_joiner_annotate && !_joiner_new)
       {
         if (left_sep)
@@ -484,7 +435,6 @@ namespace onmt
         if (right_sep)
           encoded.back().append(_joiner);
       }
-
 
       for (size_t j = 0; j < encoded.size(); ++j)
       {
@@ -500,74 +450,6 @@ namespace onmt
       }
     }
 
-    return segments;
-  }
-
-  std::vector<std::string> Tokenizer::morfessor_segment(const std::vector<std::string>& tokens) const
-  {
-
-    std::vector<std::string> segments;
-
-    // the function Morfessor::segment(word) segments one word in subwords, returns vector of nbest segmentations with the cost of their hypotheses
-    std::vector<std::pair<float, std::string> > nsegments;
-
-    for (size_t i = 0; i < tokens.size(); ++i)
-    {
-      std::string token = tokens[i];
-
-      if (token.find(Tokenizer::ph_marker_open) != std::string::npos) {
-        segments.push_back(token);
-        continue;
-      }
-
-      bool left_sep = false;
-      bool right_sep = false;
-
-
-      //strips off the joiners around the token before Morfessor subtokenization
-      if (_joiner_annotate && !_joiner_new)
-      {
-        if (has_left_join(token))
-        {
-          token.erase(0, _joiner.size());
-          left_sep = true;
-        }
-
-        if (has_right_join(token))
-        {
-          token.erase(token.size() - _joiner.size());
-          right_sep = true;
-        }
-      }
-
-      nsegments = _morfessor -> segment(token, _joiner_annotate);
-
-      /*
-      // Printing of all possibilities with their cost
-      if (_nbest==0){ //onebest
-        std::cout << (i?" ":"") << nsegments[0].second;
-      }
-      else{ //nbest
-        for (size_t s=0; s<nsegments.size(); s++){
-          std::cout << (s?"\t":"") << nsegments[s].second << " " << nsegments[s].first;
-        }
-        std::cout << std::endl;
-      }
-      */
-      //For tokenization we keep only the best hypothesis
-      auto encoded = nsegments[0].second;
-
-      // puts back the joiners around the token after Morfessor subtokenization
-      if (_joiner_annotate && !_joiner_new)
-      {
-        if (left_sep)
-          encoded =  _joiner + encoded;
-        if (right_sep)
-          encoded = encoded + _joiner;
-      }
-
-      segments.push_back(encoded);
-    }
     return segments;
   }
 
@@ -592,26 +474,6 @@ namespace onmt
         _bpe = new BPE(model_path);
 
       _cache_bpe_model = cache_model;
-    }
-
-    return *this;
-  }
-
-  Tokenizer& Tokenizer::set_morfessor_model(const std::string& model_path, bool cache_model)
-  {
-    if (_morfessor != nullptr && !_cache_morfessor_model)
-    {
-      delete _morfessor;
-    }
-
-    if (!model_path.empty())
-    {
-      if (cache_model)
-        _morfessor = load_morfessor(model_path);
-      else
-        _morfessor = new Morfessor(model_path);
-
-      _cache_morfessor_model = cache_model;
     }
 
     return *this;

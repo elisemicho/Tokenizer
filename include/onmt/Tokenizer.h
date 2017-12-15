@@ -1,6 +1,7 @@
 #pragma once
 
 #include <unordered_map>
+#include <set>
 
 #include "onmt/ITokenizer.h"
 #include "onmt/BPE.h"
@@ -58,7 +59,8 @@ namespace onmt
     Tokenizer& set_joiner(const std::string& joiner);
     Tokenizer& set_bpe_model(const std::string& model_path, bool cache_model = false);
     Tokenizer& set_morfessor_model(const std::string& model_path, bool cache_model = false);
-    Tokenizer& add_alphabet_to_segment(const std::string& alphabet);
+
+    bool add_alphabet_to_segment(const std::string& alphabet);
     bool is_alphabet_to_segment(const std::string& alphabet) const;
 
   private:
@@ -78,7 +80,7 @@ namespace onmt
     const Morfessor* _morfessor;
 
     std::string _joiner;
-    std::vector<std::string> _segment_alphabet;
+    std::set<std::string> _segment_alphabet;
 
     std::vector<std::string> bpe_segment(const std::vector<std::string>& tokens) const;
     std::vector<std::string> morfessor_segment(const std::vector<std::string>& tokens) const;
