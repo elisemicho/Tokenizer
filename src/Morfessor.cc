@@ -27,7 +27,7 @@ namespace onmt
   };
 
   Morfessor::Morfessor(const std::string& model_path)
-    : beam (0)
+    : beam (1)
     , nbest (0)
     , addcount (0) //constant for additive smoothing (0 = no smoothing)
     , maxlen (30) //maximum length for subwords
@@ -104,7 +104,7 @@ namespace onmt
     }
   }
 
-  std::vector<std::pair<float, std::string> > Morfessor::segment(const std::string &word) const
+  std::vector<std::pair<float, std::string> > Morfessor::segment(const std::string &word, bool joiner_annotated) const
   {
     if (verbose) std::cout << "segment(" << word << ")" << std::endl;
 
@@ -173,16 +173,25 @@ namespace onmt
       
     std::vector<std::pair<float,std::string> > segmentations;
     std::multiset<Hyp, compareHyp>::iterator it_Hyps = Hyps[word_length].begin();
+
     for (std::multiset<Hyp, compareHyp>::iterator it_Hyps = Hyps[word_length].begin(); it_Hyps!=Hyps[word_length].end(); it_Hyps++){
       std::vector<size_t> sizes = (*it_Hyps)._sizes;
       std::stringstream segmentation;
       size_t from = 0;
+
       for (size_t i = 0; i<sizes.size(); i++){
         UnicodeString ucsubword; 
         ucword.extract(from, sizes[i], ucsubword);
         std::string subword;
         ucsubword.toUTF8String(subword);
-        segmentation << (i?joiner:"") << subword;
+
+        if(joiner_annotated){
+          segmentation << (i?joiner+" ":"") << subword;
+        }
+        else{
+          segmentation << (i?" ":"") << subword;
+        }
+
         from += sizes[i];
       }
       std::pair<float,std::string> p = std::make_pair((*it_Hyps)._cost, segmentation.str());
@@ -202,12 +211,12 @@ namespace onmt
     if (n_corpus_subwords + n_corpus_words + addcount > 0) logtokens = log(n_corpus_subwords + n_corpus_words + addcount);
     float badlikelihood = word_length*logtokens + 1.0; //worst cost
 
-    if (freq>0){ // subword exists     
+    if (freq > 0){ // subword exists
       //      cost = log(freq + addcount) - logtokens;
       cost = logtokens - log(freq + addcount);
     }
-    else if (addcount>0){ //smoothing applies
-      if (n_corpus_subwords==0){
+    else if (addcount > 0){ //smoothing applies
+      if (n_corpus_subwords == 0){
         cost = ( addcount * log(addcount) + subword_length / corpus_weight );
       }
       else{

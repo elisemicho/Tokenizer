@@ -177,42 +177,42 @@ namespace onmt
         bool isSeparator = unicode::is_separator(v);
 
         if (placeholder) {
-            if (c == Tokenizer::ph_marker_close) {
-              token = token + c;
-              letter = true;
-              prev_alphabet = "placeholder";
-              placeholder = false;
-              space = false;
-            } else {
-              if (isSeparator) {
-                char buffer[10];
-                sprintf(buffer, "%04x", v);
-                c = protected_character + buffer;
-              }
-              token += c;
-            }
-          }
-          else if (c == Tokenizer::ph_marker_open) {
-            std::string initc;
-            if (!space) {
-              if (_joiner_annotate && !_joiner_new) {
-                if ((letter && prev_alphabet != "placeholder") || number)
-                  initc = _joiner;
-                else
-                  token += _joiner;
-              }
-              words.push_back(token);
-              token = initc;
-              if (_joiner_annotate && _joiner_new)
-                words.push_back(_joiner);
-            } else if (other) {
-              if (_joiner_annotate && token.length() == 0) {
-                if (_joiner_new) words.push_back(_joiner);
-                else words[words.size()-1] += _joiner;
-              }
+          if (c == Tokenizer::ph_marker_close) {
+            token = token + c;
+            letter = true;
+            prev_alphabet = "placeholder";
+            placeholder = false;
+            space = false;
+          } else {
+            if (isSeparator) {
+              char buffer[10];
+              sprintf(buffer, "%04x", v);
+              c = protected_character + buffer;
             }
             token += c;
-            placeholder = true;
+          }
+        }
+        else if (c == Tokenizer::ph_marker_open) {
+          std::string initc;
+          if (!space) {
+            if (_joiner_annotate && !_joiner_new) {
+              if ((letter && prev_alphabet != "placeholder") || number)
+                initc = _joiner;
+              else
+                token += _joiner;
+            }
+            words.push_back(token);
+            token = initc;
+            if (_joiner_annotate && _joiner_new)
+              words.push_back(_joiner);
+          } else if (other) {
+            if (_joiner_annotate && token.length() == 0) {
+              if (_joiner_new) words.push_back(_joiner);
+              else words[words.size()-1] += _joiner;
+            }
+          }
+          token += c;
+          placeholder = true;
         }
         else if (isSeparator)
         {
@@ -290,6 +290,7 @@ namespace onmt
 
             if (cur_letter)
             {
+              //puts joiners around punctuation marks
               if ((!letter && !space)
                   || (letter && !unicode::is_mark(v) &&
                       ((prev_alphabet == alphabet && is_alphabet_to_segment(alphabet))
@@ -399,11 +400,26 @@ namespace onmt
         words.push_back(token);
     }
 
-    if (_bpe)
-      words = bpe_segment(words);
+    /*
+    for (size_t i = 0; i < words.size(); ++i)
+    {
+      std::cout << words [i] << std::endl;
+    }
+    */
 
-    if (_morfessor)
+    if (_bpe) {
+      words = bpe_segment(words);
+    }
+    if (_morfessor){
       words = morfessor_segment(words);
+    }
+
+    /*
+    for (size_t i = 0; i < words.size(); ++i)
+    {
+      std::cout << words [i] << std::endl;
+    }
+    */
 
     if (_case_feature)
     {
@@ -442,6 +458,7 @@ namespace onmt
       bool left_sep = false;
       bool right_sep = false;
 
+      //strips off the joiners around the token before BPE encoding
       if (_joiner_annotate && !_joiner_new)
       {
         if (has_left_join(token))
@@ -459,6 +476,7 @@ namespace onmt
 
       auto encoded = _bpe->encode(token);
 
+      // puts back the joiners around the token after BPE encoding
       if (_joiner_annotate && !_joiner_new)
       {
         if (left_sep)
@@ -466,6 +484,7 @@ namespace onmt
         if (right_sep)
           encoded.back().append(_joiner);
       }
+
 
       for (size_t j = 0; j < encoded.size(); ++j)
       {
@@ -489,15 +508,41 @@ namespace onmt
 
     std::vector<std::string> segments;
 
-    // the function Morfessor::segment(word) segments one word in subwords, returns vector of segmentations with the cost of their hypotheses
+    // the function Morfessor::segment(word) segments one word in subwords, returns vector of nbest segmentations with the cost of their hypotheses
     std::vector<std::pair<float, std::string> > nsegments;
 
     for (size_t i = 0; i < tokens.size(); ++i)
     {
       std::string token = tokens[i];
-      nsegments = _morfessor->segment(token);
+
+      if (token.find(Tokenizer::ph_marker_open) != std::string::npos) {
+        segments.push_back(token);
+        continue;
+      }
+
+      bool left_sep = false;
+      bool right_sep = false;
+
+      //strips off the joiners around the token before Morfessor subtokenization
+      if (_joiner_annotate && !_joiner_new)
+      {
+        if (has_left_join(token))
+        {
+          token.erase(0, _joiner.size());
+          left_sep = true;
+        }
+
+        if (has_right_join(token))
+        {
+          token.erase(token.size() - _joiner.size());
+          right_sep = true;
+        }
+      }
+
+      nsegments = _morfessor -> segment(token, _joiner_annotate);
 
       /*
+      // Printing of all possibilities with their cost
       if (_nbest==0){ //onebest
         std::cout << (i?" ":"") << nsegments[0].second;
       }
@@ -508,7 +553,19 @@ namespace onmt
         std::cout << std::endl;
       }
       */
-      segments.push_back(nsegments[0].second);//we keep only the best segmentation for tokenization
+      //For tokenization we keep only the best hypothesis
+      auto encoded = nsegments[0].second;
+
+      // puts back the joiners around the token after Morfessor subtokenization
+      if (_joiner_annotate && !_joiner_new)
+      {
+        if (left_sep)
+          encoded =  _joiner + encoded;
+        if (right_sep)
+          encoded = encoded + _joiner;
+      }
+
+      segments.push_back(encoded);
     }
     return segments;
   }

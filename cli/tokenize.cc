@@ -87,8 +87,9 @@ int main(int argc, char* argv[])
 
   while (std::getline(std::cin, line))
   {
-    if (!line.empty())
+    if (!line.empty()){
       std::cout << reinterpret_cast<onmt::ITokenizer*>(tokenizer)->tokenize(line);
+    }
 
     std::cout << std::endl;
   }
