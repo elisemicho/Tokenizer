@@ -523,6 +523,7 @@ namespace onmt
       bool left_sep = false;
       bool right_sep = false;
 
+
       //strips off the joiners around the token before Morfessor subtokenization
       if (_joiner_annotate && !_joiner_new)
       {
