@@ -479,17 +479,16 @@ namespace onmt
     return *this;
   }
 
-  bool Tokenizer::add_alphabet_to_segment(const std::string& alphabet)
+  Tokenizer& Tokenizer::add_alphabet_to_segment(const std::string& alphabet)
   {
-    if (!onmt::alphabet_is_supported(alphabet))
-      return false;
-    _segment_alphabet.insert(alphabet);
-    return true;
+    _segment_alphabet.push_back(alphabet);
+    return *this;
   }
 
   bool Tokenizer::is_alphabet_to_segment(const std::string& alphabet) const
   {
-    return _segment_alphabet.count(alphabet) > 0;
+    return (std::find(_segment_alphabet.begin(), _segment_alphabet.end(), alphabet)
+            != _segment_alphabet.end());
   }
 
   bool Tokenizer::has_left_join(const std::string& word) const
